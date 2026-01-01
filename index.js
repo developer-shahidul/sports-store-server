@@ -1,9 +1,9 @@
 require("dotenv").config();
 const express = require("express");
-const app = express();
 const cors = require("cors");
-const port = process.env.PORT || 3000;
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
+
+const app = express();
 
 // Middleware
 app.use(cors());
@@ -11,7 +11,6 @@ app.use(express.json());
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.39yqdr4.mongodb.net/?appName=Cluster0`;
 
-// Create a MongoClient
 const client = new MongoClient(uri, {
   serverApi: {
     version: ServerApiVersion.v1,
@@ -22,32 +21,26 @@ const client = new MongoClient(uri, {
 
 async function run() {
   try {
-    // Connect the client (Vercel-এ এটা রিপিটেডলি কল হতে পারে, কিন্তু safe)
     await client.connect();
-
     const UsersEquipment = client.db("Equipments").collection("items");
     const userConnection = client.db("Equipments").collection("users");
 
-    // Root route
+    // Routes
     app.get("/", (req, res) => {
       res.send("server site successfully run");
     });
 
-    // Get all items
     app.get("/items", async (req, res) => {
-      const cursor = UsersEquipment.find();
-      const result = await cursor.toArray();
+      const result = await UsersEquipment.find().toArray();
       res.send(result);
     });
 
-    // Add new item
     app.post("/items", async (req, res) => {
       const body = req.body;
       const result = await UsersEquipment.insertOne(body);
       res.send(result);
     });
 
-    // Delete item
     app.delete("/items/:id", async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
@@ -55,7 +48,6 @@ async function run() {
       res.send(result);
     });
 
-    // Get single item
     app.get("/items/:id", async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
@@ -63,7 +55,6 @@ async function run() {
       res.send(result);
     });
 
-    // Update item
     app.put("/items/:id", async (req, res) => {
       const id = req.params.id;
       const body = req.body;
@@ -86,48 +77,38 @@ async function run() {
       res.send(result);
     });
 
-    // Get items by user email
     app.get("/items/user/:email", async (req, res) => {
       const email = req.params.email;
       const items = await UsersEquipment.find({ email }).toArray();
       res.send(items);
     });
 
-    // Like / Unlike
     app.patch("/items/like/:id", async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
       const { email } = req.body;
-
       const item = await UsersEquipment.findOne(query);
 
-      if (!item) {
-        return res.status(404).send({ message: "items not found" });
-      }
+      if (!item) return res.status(404).send({ message: "item not found" });
 
       if (item?.likedBy?.includes(email)) {
-        // Unlike
-        const updateDoc = {
+        const result = await UsersEquipment.updateOne(query, {
           $pull: { likedBy: email },
           $inc: { likes: -1 },
-        };
-        const result = await UsersEquipment.updateOne(query, updateDoc);
+        });
         res.send({ liked: false, result });
       } else {
-        // Like
-        const updateDoc2 = {
+        const result = await UsersEquipment.updateOne(query, {
           $addToSet: { likedBy: email },
           $inc: { likes: 1 },
-        };
-        const result = await UsersEquipment.updateOne(query, updateDoc2);
+        });
         res.send({ liked: true, result });
       }
     });
 
-    // Users routes
+    // Users
     app.get("/users", async (req, res) => {
-      const query = userConnection.find();
-      const result = await query.toArray();
+      const result = await userConnection.find().toArray();
       res.send(result);
     });
 
@@ -140,32 +121,19 @@ async function run() {
     app.patch("/users", async (req, res) => {
       const email = req.body.email;
       const query = { email };
-      const userDoc = {
+      const result = await userConnection.updateOne(query, {
         $set: { lastSignInTime: req.body?.lastSignInTime },
-      };
-      const result = await userConnection.updateOne(query, userDoc);
+      });
       res.send(result);
     });
 
-    // Ping for confirmation
-    await client.db("admin").command({ ping: 1 });
-    console.log(
-      "Pinged your deployment. You successfully connected to MongoDB!"
-    );
+    console.log("MongoDB connected successfully!");
   } catch (error) {
-    console.error("MongoDB connection or setup error:", error);
+    console.error("Error in setup:", error);
   }
-  // Don't close client in serverless (Vercel)
 }
 
-run().catch(console.dir);
+run();
 
-// Local development-এ শুধু listen করুন
-if (process.env.NODE_ENV !== "production") {
-  app.listen(port, () => {
-    console.log(`Server is running on port: ${port}`);
-  });
-}
-
-// Vercel-এর জন্য অবশ্যই export করতে হবে
+// Vercel-এর জন্য এটাই যথেষ্ট
 module.exports = app;
