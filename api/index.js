@@ -4,11 +4,9 @@ const app = express();
 const cors = require("cors");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 
-// Middleware
 app.use(cors());
 app.use(express.json());
 
-// MongoDB URI
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.39yqdr4.mongodb.net/?appName=Cluster0`;
 
 const client = new MongoClient(uri, {
@@ -25,25 +23,22 @@ async function run() {
     const itemsCollection = client.db("Equipments").collection("items");
     const usersCollection = client.db("Equipments").collection("users");
 
-    // Root route
+    // সব রুট
     app.get("/", (req, res) => {
       res.send("server site successfully run");
     });
 
-    // All items
     app.get("/items", async (req, res) => {
       const result = await itemsCollection.find().toArray();
       res.send(result);
     });
 
-    // Add item
     app.post("/items", async (req, res) => {
       const body = req.body;
       const result = await itemsCollection.insertOne(body);
       res.send(result);
     });
 
-    // Delete item
     app.delete("/items/:id", async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
@@ -51,7 +46,6 @@ async function run() {
       res.send(result);
     });
 
-    // Get single item
     app.get("/items/:id", async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
@@ -59,7 +53,6 @@ async function run() {
       res.send(result);
     });
 
-    // Update item
     app.put("/items/:id", async (req, res) => {
       const id = req.params.id;
       const body = req.body;
@@ -86,14 +79,12 @@ async function run() {
       res.send(result);
     });
 
-    // User specific items
     app.get("/items/user/:email", async (req, res) => {
       const email = req.params.email;
       const result = await itemsCollection.find({ email }).toArray();
       res.send(result);
     });
 
-    // Like / Unlike
     app.patch("/items/like/:id", async (req, res) => {
       const id = req.params.id;
       const { email } = req.body;
@@ -103,21 +94,20 @@ async function run() {
       if (!item) return res.status(404).send({ message: "Item not found" });
 
       if (item.likedBy?.includes(email)) {
-        const result = await itemsCollection.updateOne(query, {
+        await itemsCollection.updateOne(query, {
           $pull: { likedBy: email },
           $inc: { likes: -1 },
         });
-        res.send({ liked: false, result });
+        res.send({ liked: false });
       } else {
-        const result = await itemsCollection.updateOne(query, {
+        await itemsCollection.updateOne(query, {
           $addToSet: { likedBy: email },
           $inc: { likes: 1 },
         });
-        res.send({ liked: true, result });
+        res.send({ liked: true });
       }
     });
 
-    // Users routes
     app.get("/users", async (req, res) => {
       const result = await usersCollection.find().toArray();
       res.send(result);
@@ -146,14 +136,13 @@ async function run() {
 
 run().catch(console.dir);
 
-// লোকালে চালালে listen করবে
-// Vercel-এ চালালে এই অংশটা ignore হবে
-if (!process.env.VERCEL) {
+// Vercel-এর জন্য export (অবশ্যই থাকতে হবে)
+module.exports = app;
+
+// লোকালে চালালে listen করবে (Vercel-এ এটা ignore হবে)
+if (process.env.NODE_ENV !== "production") {
   const port = process.env.PORT || 3000;
   app.listen(port, () => {
-    console.log(`Server running on http://localhost:${port}`);
+    console.log(`Local server running on http://localhost:${port}`);
   });
 }
-
-// Vercel serverless-এর জন্য অবশ্যই export করতে হবে
-module.exports = app;
