@@ -10,20 +10,17 @@ const client = new MongoClient(uri, {
   },
 });
 
-let itemsCollection;
-let usersCollection;
+let db;
 
 async function connectToDB() {
-    if (itemsCollection && usersCollection) {
-        return { itemsCollection, usersCollection };
+    if (db) {
+        return db;
     }
     try {
         await client.connect();
-        const db = client.db("Equipments");
-        itemsCollection = db.collection("items");
-        usersCollection = db.collection("users");
+        db = client.db("Equipments");
         console.log("MongoDB connected successfully!");
-        return { itemsCollection, usersCollection };
+        return db;
     } catch (error) {
         console.error("MongoDB connection error:", error);
         throw error;
