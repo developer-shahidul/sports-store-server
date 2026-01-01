@@ -1,5 +1,3 @@
-//
-
 require("dotenv").config();
 const express = require("express");
 const app = express();
@@ -7,13 +5,13 @@ const cors = require("cors");
 const port = process.env.PORT || 3000;
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 
-// middleware
+// Middleware
 app.use(cors());
 app.use(express.json());
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.39yqdr4.mongodb.net/?appName=Cluster0`;
 
-// Create a MongoClient with a MongoClientOptions object to set the Stable API version
+// Create a MongoClient
 const client = new MongoClient(uri, {
   serverApi: {
     version: ServerApiVersion.v1,
@@ -24,22 +22,32 @@ const client = new MongoClient(uri, {
 
 async function run() {
   try {
-    // Connect the client to the server	(optional starting in v4.7)
+    // Connect the client (Vercel-এ এটা রিপিটেডলি কল হতে পারে, কিন্তু safe)
     await client.connect();
+
     const UsersEquipment = client.db("Equipments").collection("items");
     const userConnection = client.db("Equipments").collection("users");
 
+    // Root route
+    app.get("/", (req, res) => {
+      res.send("server site successfully run");
+    });
+
+    // Get all items
     app.get("/items", async (req, res) => {
       const cursor = UsersEquipment.find();
       const result = await cursor.toArray();
       res.send(result);
     });
 
+    // Add new item
     app.post("/items", async (req, res) => {
       const body = req.body;
       const result = await UsersEquipment.insertOne(body);
       res.send(result);
     });
+
+    // Delete item
     app.delete("/items/:id", async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
@@ -47,7 +55,7 @@ async function run() {
       res.send(result);
     });
 
-    // update
+    // Get single item
     app.get("/items/:id", async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
@@ -55,6 +63,7 @@ async function run() {
       res.send(result);
     });
 
+    // Update item
     app.put("/items/:id", async (req, res) => {
       const id = req.params.id;
       const body = req.body;
@@ -77,20 +86,19 @@ async function run() {
       res.send(result);
     });
 
-    // email maching gulue daw
-    // get items only for a specific email
+    // Get items by user email
     app.get("/items/user/:email", async (req, res) => {
       const email = req.params.email;
       const items = await UsersEquipment.find({ email }).toArray();
       res.send(items);
     });
 
-    // like aer jonno
+    // Like / Unlike
     app.patch("/items/like/:id", async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
-
       const { email } = req.body;
+
       const item = await UsersEquipment.findOne(query);
 
       if (!item) {
@@ -98,6 +106,7 @@ async function run() {
       }
 
       if (item?.likedBy?.includes(email)) {
+        // Unlike
         const updateDoc = {
           $pull: { likedBy: email },
           $inc: { likes: -1 },
@@ -105,6 +114,7 @@ async function run() {
         const result = await UsersEquipment.updateOne(query, updateDoc);
         res.send({ liked: false, result });
       } else {
+        // Like
         const updateDoc2 = {
           $addToSet: { likedBy: email },
           $inc: { likes: 1 },
@@ -114,8 +124,7 @@ async function run() {
       }
     });
 
-    // user aer jonno
-
+    // Users routes
     app.get("/users", async (req, res) => {
       const query = userConnection.find();
       const result = await query.toArray();
@@ -138,22 +147,25 @@ async function run() {
       res.send(result);
     });
 
-    // Send a ping to confirm a successful connection
+    // Ping for confirmation
     await client.db("admin").command({ ping: 1 });
     console.log(
       "Pinged your deployment. You successfully connected to MongoDB!"
     );
-  } finally {
-    // Ensures that the client will close when you finish/error
-    // await client.close();
+  } catch (error) {
+    console.error("MongoDB connection or setup error:", error);
   }
+  // Don't close client in serverless (Vercel)
 }
+
 run().catch(console.dir);
 
-app.get("/", (req, res) => {
-  res.send("server site successfully run");
-});
+// Local development-এ শুধু listen করুন
+if (process.env.NODE_ENV !== "production") {
+  app.listen(port, () => {
+    console.log(`Server is running on port: ${port}`);
+  });
+}
 
-app.listen(port, () => {
-  console.log(`server site is running on port : ${port}`);
-});
+// Vercel-এর জন্য অবশ্যই export করতে হবে
+module.exports = app;
